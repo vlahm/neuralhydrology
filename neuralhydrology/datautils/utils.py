@@ -142,8 +142,10 @@ def sort_frequencies(frequencies: List[str]) -> List[str]:
         # no need to call to_timedelta which may not work with all frequencies
         return frequencies
 
-    deltas = {freq: pd.to_timedelta(freq) for freq in frequencies}
-    return sorted(deltas, key=deltas.get)[::-1]
+    # TODO does this work in all cases? I think in all reasonable ones it should work.
+    base_date = pd.to_datetime('2001-01-01 00:00:00')
+    deltas = {freq: base_date + to_offset(freq) for freq in frequencies}
+    return sorted(deltas, key=deltas.get, reverse=True)
 
 
 def infer_frequency(index: Union[pd.DatetimeIndex, np.ndarray]) -> str:
@@ -222,11 +224,17 @@ def get_frequency_factor(freq_one: str, freq_two: str) -> float:
     Raises
     ------
     ValueError
-        If the frequencies are not identical and do not represent fixed time deltas.
-        E.g., a month does not always represent a fixed time delta.
+        If the frequencies are not identical, don't yield the same offset unit, and do not represent fixed time deltas.
+        E.g., a month does not always represent a fixed time delta, but 1M and 2M are of the same unit.
     """
     if freq_one == freq_two:
         return 1
+
+    offset_one = to_offset(freq_one)
+    offset_two = to_offset(freq_two)
+    # TODO can we be more general here?
+    if offset_one.name == offset_two.name:
+        return offset_one.n / offset_two.n
 
     try:
         factor = pd.to_timedelta(freq_one) / pd.to_timedelta(freq_two)

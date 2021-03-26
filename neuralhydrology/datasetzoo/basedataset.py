@@ -596,13 +596,6 @@ class BaseDataset(Dataset):
             self.seq_len = [self.seq_len]
             self._predict_last_n = [self._predict_last_n]
         else:
-            if len(self.frequencies) > 1:
-                for freq in self.frequencies:
-                    try:
-                        _ = pd.to_timedelta(freq)
-                    except ValueError as err:
-                        raise ValueError(
-                            'If multiple frequencies are used, they must be convertible to timedeltas.') from err
             # flatten per-frequency dictionaries into lists that are ordered as use_frequencies
             if not isinstance(self.seq_len, dict) \
                     or not isinstance(self._predict_last_n, dict) \
