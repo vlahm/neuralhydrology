@@ -4,6 +4,7 @@ from typing import List, Union
 
 import numpy as np
 import pandas as pd
+from pandas.tseries.frequencies import to_offset
 from xarray.core.dataarray import DataArray
 from xarray.core.dataset import Dataset
 
@@ -137,6 +138,10 @@ def sort_frequencies(frequencies: List[str]) -> List[str]:
     List[str]
         Sorted list of pandas frequency identifiers.
     """
+    if len(frequencies) < 2:
+        # no need to call to_timedelta which may not work with all frequencies
+        return frequencies
+
     deltas = {freq: pd.to_timedelta(freq) for freq in frequencies}
     return sorted(deltas, key=deltas.get)[::-1]
 
@@ -165,8 +170,10 @@ def infer_frequency(index: Union[pd.DatetimeIndex, np.ndarray]) -> str:
         raise ValueError(f'Cannot infer a legal frequency from dataset: {native_frequency}.')
     if native_frequency[0] not in '0123456789':  # add a value to the unit so to_timedelta works
         native_frequency = f'1{native_frequency}'
-    if pd.to_timedelta(native_frequency) == pd.to_timedelta(0):
-        raise ValueError('Inferred dataset frequency is zero.')
+    # TODO will this always work? at least in all reasonable cases it should, I think
+    base_datetime = pd.to_datetime('2001-01-01 00:00:00')
+    if base_datetime + to_offset(native_frequency) <= base_datetime:
+        raise ValueError('Inferred dataset frequency is zero or negative.')
     return native_frequency
 
 
@@ -195,3 +202,34 @@ def infer_datetime_coord(xr: Union[DataArray, Dataset]) -> str:
         raise RuntimeError("Did not find any coordinate with 'date' in its name")
 
     return candidates[0]
+
+
+def get_frequency_factor(freq_one: str, freq_two: str) -> float:
+    """Get relative factor between the two frequencies.
+
+    Parameters
+    ----------
+    freq_one : str
+        String representation of the first frequency.
+    freq_two : str
+        String representation of the second frequency.
+
+    Returns
+    -------
+    float
+        Ratio of `freq_one` to `freq_two`.
+
+    Raises
+    ------
+    ValueError
+        If the frequencies are not identical and do not represent fixed time deltas.
+        E.g., a month does not always represent a fixed time delta.
+    """
+    if freq_one == freq_two:
+        return 1
+
+    try:
+        factor = pd.to_timedelta(freq_one) / pd.to_timedelta(freq_two)
+    except ValueError as err:
+        raise ValueError(f'Frequencies {freq_one} and/or {freq_two} cannot be converted to a time delta.') from err
+    return factor

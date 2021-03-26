@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Dict, Tuple, Callable
 
 import pandas as pd
+from pandas.tseries.frequencies import to_offset
 import pytest
 from pytest import approx
 
@@ -122,7 +123,7 @@ def test_multi_timescale_regression(get_config: Fixture[Callable[[str], dict]], 
         .sel(basin=basin, date=slice(test_start_date, test_end_date))['qobs_mm_per_hour']
 
     hourly_results = results['1H']['xr'].to_dataframe().reset_index()
-    hourly_results.index = hourly_results['date'] + hourly_results['time_step']
+    hourly_results.index = hourly_results['date'] + hourly_results['time_step'] * to_offset('H')
     assert hourly_results.index[0] == test_start_date
     assert hourly_results.index[-1] == test_end_date.floor('H')
 

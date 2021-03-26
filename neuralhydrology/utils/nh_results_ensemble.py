@@ -8,11 +8,12 @@ from typing import List
 
 import numpy as np
 import pandas as pd
+from pandas.tseries.frequencies import to_offset
 import xarray as xr
 from tqdm import tqdm
 
 sys.path.append(str(Path(__file__).parent.parent.parent))
-from neuralhydrology.datautils.utils import sort_frequencies
+from neuralhydrology.datautils.utils import get_frequency_factor, sort_frequencies
 from neuralhydrology.evaluation.metrics import calculate_metrics, get_available_metrics
 from neuralhydrology.utils.config import Config
 from neuralhydrology.utils.errors import AllNaNError
@@ -101,11 +102,14 @@ def _create_ensemble(results_files: List[Path], frequencies: List[str], config: 
             ensemble_xr = ensemble_sum[basin][freq]
 
             # combine date and time to a single index to calculate metrics
-            frequency_factor = pd.to_timedelta(lowest_freq) // pd.to_timedelta(freq)
+            frequency_factor = int(get_frequency_factor(lowest_freq, freq))
             ensemble_xr = ensemble_xr.isel(time_step=slice(-frequency_factor, None)).stack(
                 datetime=['date', 'time_step'])
-            ensemble_xr['datetime'] = ensemble_xr['date'] + ensemble_xr['time_step']
-
+            # TODO performance
+            ensemble_xr['datetime'] = [
+                date + time_step * to_offset(freq)
+                for date, time_step in zip(ensemble_xr['date'].values, ensemble_xr['time_step'].values)
+            ]
             for target_var in target_vars:
                 # average predictions
                 ensemble_xr[f'{target_var}_sim'] = ensemble_xr[f'{target_var}_sim'] / len(results_files)
