@@ -244,12 +244,22 @@ class BaseTester(object):
                 end_date = ds.dates[basin]["end_dates"][0] \
                     + pd.Timedelta(days=1, seconds=-1) \
                     - to_offset(max_offset_freq) * (predict_last_n[max_offset_freq] - 1)
+
+                # date range at the lowest frequency
                 date_range = pd.date_range(start=start_date, end=end_date, freq=lowest_freq)
                 if len(date_range) != data[f"{self.cfg.target_variables[0]}_obs"][1].shape[0]:
                     raise ValueError("Evaluation date range does not match generated predictions.")
 
+                # freq_range are the steps of the current frequency at each lowest-frequency step
                 frequency_factor = int(get_frequency_factor(lowest_freq, freq))
                 freq_range = list(range(frequency_factor - predict_last_n[freq], frequency_factor))
+
+                # create datetime range at the current frequency
+                freq_date_range = pd.date_range(start=start_date, end=end_date, freq=freq)
+                # remove datetime steps that are not being predicted from the datetime range
+                mask = np.ones(frequency_factor).astype(bool)
+                mask[:-predict_last_n[freq]] = False
+                freq_date_range = freq_date_range[np.tile(mask, len(date_range))]
 
                 xr = xarray.Dataset(data_vars=data, coords={'date': date_range, 'time_step': freq_range})
                 results[basin][freq]['xr'] = xr
@@ -264,19 +274,12 @@ class BaseTester(object):
                         # stack dates and time_steps so we don't just evaluate every 24H when use_frequencies=[1D, 1H]
                         obs = xr.isel(time_step=slice(-frequency_factor, None)) \
                             .stack(datetime=['date', 'time_step'])[f"{target_variable}_obs"]
-                        # TODO performance (also for sim below)
-                        obs['datetime'] = [
-                            date + time_step * to_offset(freq)
-                            for date, time_step in zip(obs.coords['date'].values, obs.coords['time_step'].values)
-                        ]
+                        obs['datetime'] = freq_date_range
                         # check if there are observations for this period
                         if not all(obs.isnull()):
                             sim = xr.isel(time_step=slice(-frequency_factor, None)) \
                                 .stack(datetime=['date', 'time_step'])[f"{target_variable}_sim"]
-                            sim['datetime'] = [
-                                date + time_step * to_offset(freq)
-                                for date, time_step in zip(sim.coords['date'].values, sim.coords['time_step'].values)
-                            ]
+                            sim['datetime'] = freq_date_range
 
                             # clip negative predictions to zero, if variable is listed in config 'clip_target_to_zero'
                             if target_variable in self.cfg.clip_targets_to_zero:
