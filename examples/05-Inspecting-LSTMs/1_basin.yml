@@ -107,23 +107,23 @@ save_weights_every: 1
 dataset: camels_us
 
 # Path to data set root
-data_dir: ../../data/CAMELS_US
+data_dir: ../../data/datadir/CAMELS_US
 
 # Forcing product [daymet, maurer, maurer_extended, nldas, nldas_extended, nldas_hourly]
 # can be either a list of forcings or a single forcing product
-forcings: nldas_extended
+forcings: daymet
 
 dynamic_inputs:
-- PRCP(mm/day)
-- SRAD(W/m2)
-- Tmax(C)
-- Tmin(C)
-- Vp(Pa)
+  - prcp(mm/day)
+  - srad(W/m2)
+  - tmax(C)
+  - tmin(C)
+  - vp(Pa)
 
 # which columns to use as target
 target_variables:
-- QObs(mm/d)
+  - QObs(mm/d)
 
 # clip negative predictions to zero for all variables listed below. Should be a list, even for single variables.
 clip_targets_to_zero:
-- QObs(mm/d)
+  - QObs(mm/d)

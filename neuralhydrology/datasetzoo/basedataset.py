@@ -273,15 +273,21 @@ class BaseDataset(Dataset):
                 df = self._add_lagged_features(df)
 
                 # remove unnecessary columns
-                df = df[keep_cols]
+                try:
+                    df = df[keep_cols]
+                except KeyError:
+                    not_available_columns = [x for x in keep_cols if x not in df.columns]
+                    msg = [
+                        f"The following features are not available in the data: {not_available_columns}. ",
+                        f"These are the available features: {df.columns.tolist()}"
+                    ]
+                    raise KeyError("".join(msg))
 
                 # make end_date the last second of the specified day, such that the
                 # dataset will include all hours of the last day, not just 00:00.
                 start_dates = self.dates[basin]["start_dates"]
                 end_dates = [date + pd.Timedelta(days=1, seconds=-1) for date in self.dates[basin]["end_dates"]]
 
-                #print(basin)
-                #print(df.index)
                 native_frequency = utils.infer_frequency(df.index)
                 if not self.frequencies:
                     self.frequencies = [native_frequency]  # use df's native resolution by default
@@ -400,7 +406,6 @@ class BaseDataset(Dataset):
 
             # converting from xarray to pandas DataFrame because resampling is much faster in pandas.
             df_native = xr.sel(basin=basin).to_dataframe()
-
             for freq in self.frequencies:
                 # make sure that possible mass inputs are sorted to the beginning of the dynamic feature list
                 if isinstance(self.cfg.dynamic_inputs, list):
